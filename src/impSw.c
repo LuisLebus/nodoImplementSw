@@ -39,12 +39,7 @@ void impSwInit(gpioMap_t gpio)
 
 bool_t impSwGet(void)
 {
-	bool_t retVal = false;
-
-	if(gpioUsed != GND)
-		retVal = gpioRead(gpioUsed);
-
-	return retVal;
+	return gpioRead(gpioUsed);;
 }
 
 /*=====[Implementations of interrupt functions]==============================*/

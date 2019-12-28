@@ -36,9 +36,8 @@
 /* Date: 2016-02-26 */
 
 /*==================[inclusions]=============================================*/
-
+#include "FreeRTOS.h"
 #include "sapi_uart.h"
-
 #include "string.h"
 
 /*==================[macros]=================================================*/
@@ -119,7 +118,7 @@ void uartInterrupt( uartMap_t uart, bool_t enable )
 {
    if( enable ) {
       // Interrupt Priority for UART channel
-      NVIC_SetPriority( uartModule[uart].irqAddr, 5 ); // FreeRTOS Requiere prioridad >= 5 (numero mas alto, mas baja prioridad)
+      NVIC_SetPriority( uartModule[uart].irqAddr, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY ); // FreeRTOS Requiere prioridad >= 5 (numero mas alto, mas baja prioridad)
       // Enable Interrupt for UART channel
       NVIC_EnableIRQ( uartModule[uart].irqAddr );
    } else {

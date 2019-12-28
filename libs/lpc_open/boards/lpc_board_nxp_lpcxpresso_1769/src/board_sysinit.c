@@ -101,6 +101,6 @@ void Board_SetupClocking(void)
 /* Set up and initialize hardware prior to call to main */
 void Board_SystemInit(void)
 {
-	Board_SetupMuxing();
+	//Board_SetupMuxing();
 	Board_SetupClocking();
 }

@@ -64,21 +64,18 @@ typedef struct {
 static const canModule_t canModule[CAN_MAX] = {
 		// { canAddr, { txPort, txpin, txfunc }, { rxPort, rxpin, rxfunc }, canIrqAddr },
 
-		// CAN0 (GPIO0_1 = TX, GPIO0_0 = RX)
-		{ LPC_CAN1, { FUNC1, 0, 1 }, { FUNC1, 0, 0 }, CAN_IRQn },	// CAN0
-		// CAN1 (GPIO0_5 = TX, GPIO0_4 = RX)
-		{ LPC_CAN2, { FUNC2, 0, 5 }, { FUNC2, 0, 4 }, CAN_IRQn }, 	// CAN1
+		// CAN2 (GPIO0_5 = TX, GPIO0_4 = RX)
+		{ LPC_CAN2, { FUNC2, 0, 5 }, { FUNC2, 0, 4 }, CAN_IRQn },	// CAN2
 
 };
 
 static canCallback_t canCallback[CAN_MAX] = {
 		// { rxCallback, rxCallbackParam },
 		{ 0, NULL },	// CAN0
-		{ 0, NULL },	// CAN1
 };
 
-static xQueueHandle canRxQueue[CAN_MAX] = { NULL, NULL };
-static xQueueHandle canTxQueue[CAN_MAX] = { NULL, NULL };
+static xQueueHandle canRxQueue[CAN_MAX] = { NULL };
+static xQueueHandle canTxQueue[CAN_MAX] = { NULL };
 
 /*==================[internal functions declaration]=========================*/
 #ifdef SAPI_USE_INTERRUPTS
@@ -91,7 +88,7 @@ static void canProcessIRQ(void)
 	canMessage_t canMessage;
 	uint32_t status;
 	uint8_t i;
-	portBASE_TYPE xHigherPriorityTaskWokenByPost = pdFALSE;
+	portBASE_TYPE xHigherPriorityTaskWoken[CAN_MAX];
 
 	for(i=0; i<CAN_MAX; i++)
 	{
@@ -116,12 +113,21 @@ static void canProcessIRQ(void)
 			}
 
 			if(canRxQueue[i] != NULL)
-				xQueueSendFromISR(canRxQueue[i], &canMessage, &xHigherPriorityTaskWokenByPost);
+			{
+				xHigherPriorityTaskWoken[i] = pdFALSE;
+				xQueueSendFromISR(canRxQueue[i], &canMessage, &xHigherPriorityTaskWoken[i]);
+			}
 
 			// Execute callback
 			if(canCallback[i].rxIsrCallback != 0)
 				(*canCallback[i].rxIsrCallback)(0);
 		}
+	}
+
+	for(i=0; i<CAN_MAX; i++)
+	{
+		portYIELD_FROM_ISR( xHigherPriorityTaskWoken[i] );
+		break;
 	}
 }
 #endif /* SAPI_USE_INTERRUPTS */
@@ -170,69 +176,74 @@ static void canTxTask(void *pvParameters)
 // CAN Global Interrupt Enable/Disable
 void canInterrupt( canMap_t can, bool_t enable )
 {
-   if(enable)
-   {
-      // Enable Interrupt for CAN channel
-      NVIC_EnableIRQ(canModule[can].irqAddr);
-   }
-   else
-   {
-      // Disable Interrupt for CAN channel
-      NVIC_DisableIRQ(canModule[can].irqAddr);
-   }
+	if(enable)
+	{
+		// Interrupt Priority for CAN channel
+		NVIC_SetPriority(canModule[can].irqAddr, configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY); // FreeRTOS Requiere prioridad >= 5 (numero mas alto, mas baja prioridad)
+		// Enable Interrupt for CAN channel
+		NVIC_EnableIRQ(canModule[can].irqAddr);
+	}
+	else
+	{
+		// Disable Interrupt for CAN channel
+		NVIC_DisableIRQ(canModule[can].irqAddr);
+	}
 }
 
 // CAN Interrupt event Enable and set a callback
 void canCallbackSet(canMap_t can, canEvents_t event, callBackFuncPtr_t callbackFunc, void* callbackParam)
 {   
-   uint32_t intMask = 0;
+	uint32_t intMask = 0;
 
-   switch(event)
-   {
-      case CAN_RECEIVE:
-         // Enable CAN Receiver Buffer Register Interrupt
-         intMask |= CAN_IER_RIE;
-         
-         if(callbackFunc != 0)
-         {
-        	 // Set callback
-        	 canCallback[can].rxIsrCallback = callbackFunc;
-        	 canCallback[can].rxIsrCallbackParams = callbackParam;
+	switch(event)
+	{
+	case CAN_RECEIVE:
+		// Enable CAN Receiver Buffer Register Interrupt
+		intMask |= CAN_IER_RIE;
 
-        	 // Enable CAN Interrupt
-        	 Chip_CAN_EnableInt(canModule[can].addr, intMask);
-         }
-         break;
-   }
+		if(callbackFunc != 0)
+		{
+			// Set callback
+			canCallback[can].rxIsrCallback = callbackFunc;
+			canCallback[can].rxIsrCallbackParams = callbackParam;
+		}
+
+		// Enable CAN Interrupt
+		Chip_CAN_EnableInt(canModule[can].addr, intMask);
+
+		break;
+	}
 
 }
-                 
+
 // CAN Interrupt event Disable
 void canCallbackClr(canMap_t can, canEvents_t event)
 {
-   uint32_t intMask = 0;
+	uint32_t intMask = 0;
 
-   switch(event)
-   {
-	   case CAN_RECEIVE:
-		   // Enable CAN Receiver Buffer Register Interrupt
-		   intMask |= CAN_IER_RIE;
+	switch(event)
+	{
+	case CAN_RECEIVE:
+		// Enable CAN Receiver Buffer Register Interrupt
+		intMask |= CAN_IER_RIE;
 
-		   // Set callback
-		   canCallback[can].rxIsrCallback = 0;
-		   canCallback[can].rxIsrCallbackParams = NULL;
+		// Set callback
+		canCallback[can].rxIsrCallback = 0;
+		canCallback[can].rxIsrCallbackParams = NULL;
 
-		   // Disable CAN Interrupt
-		   Chip_CAN_DisableInt(canModule[can].addr, intMask);
-		   break;
-   }
+		// Disable CAN Interrupt
+		Chip_CAN_DisableInt(canModule[can].addr, intMask);
+		break;
+	}
 }
- 
+
 #endif /* SAPI_USE_INTERRUPTS */
 
 
-void canInit(canMap_t can, uint32_t baudRate)
+bool_t canInit(canMap_t can, uint32_t baudRate)
 {
+	portBASE_TYPE resTask;
+
 	// Configure CANn_TXD uartPin
 	Chip_IOCON_PinMux(
 			LPC_IOCON,
@@ -251,19 +262,30 @@ void canInit(canMap_t can, uint32_t baudRate)
 
 	Chip_CAN_Init(canModule[can].addr, LPC_CANAF, LPC_CANAF_RAM);
 	Chip_CAN_SetBitRate(canModule[can].addr, baudRate);
-	Chip_CAN_SetAFMode(LPC_CANAF, CAN_AF_NORMAL_MODE);
+
+	//Habilita modo self test
+	//Chip_CAN_SetMode(canModule[can].addr, CAN_MOD_STM, ENABLE);
 
 	canRxQueue[can] = xQueueCreate(CAN_QUEUE_SIZE, sizeof(canMessage_t));
-	canTxQueue[can] = xQueueCreate(CAN_QUEUE_SIZE, sizeof(canMessage_t));
+	if(canRxQueue[can] == NULL)
+		return false;
 
-	xTaskCreate(canTxTask, (signed char *) "canTxTask", configMINIMAL_STACK_SIZE, NULL, (tskIDLE_PRIORITY + 1UL), (xTaskHandle *) NULL);
+	canTxQueue[can] = xQueueCreate(CAN_QUEUE_SIZE, sizeof(canMessage_t));
+	if(canTxQueue[can] == NULL)
+		return false;
+
+	resTask = xTaskCreate(canTxTask, (signed char *) "canTxTask", configMINIMAL_STACK_SIZE, NULL, (tskIDLE_PRIORITY + 1UL), (xTaskHandle *) NULL);
+	if(resTask != pdPASS)
+		return false;
+
+	return true;
 }
 
 bool_t canPut(canMap_t can, canMessage_t* canMessage, uint32_t msToWait)
 {
 	bool_t retVal = false;
 
-	if( xQueueSend(canTxQueue[can], &canMessage, msToWait / portTICK_RATE_MS) == pdTRUE)
+	if( xQueueSend(canTxQueue[can], canMessage, msToWait / portTICK_RATE_MS) == pdTRUE)
 		retVal = true;
 
 	return retVal;
@@ -273,7 +295,7 @@ bool_t canGet(canMap_t can, canMessage_t* canMessage, uint32_t msToWait)
 {
 	bool_t retVal = false;
 
-	if( xQueueReceive(canRxQueue[can], &canMessage, msToWait / portTICK_RATE_MS) == pdTRUE)
+	if( xQueueReceive(canRxQueue[can], canMessage, msToWait / portTICK_RATE_MS) == pdTRUE)
 		retVal = true;
 
 	return retVal;
@@ -334,6 +356,11 @@ void canClearFilter(canMap_t can, uint32_t filter, canIdType_t type)
 			}
 		}
 	}
+}
+
+void canDisableFilter(canMap_t can)
+{
+	Chip_CAN_SetAFMode(LPC_CANAF, CAN_AF_BYBASS_MODE);
 }
 
 /*==================[ISR external functions definition]======================*/

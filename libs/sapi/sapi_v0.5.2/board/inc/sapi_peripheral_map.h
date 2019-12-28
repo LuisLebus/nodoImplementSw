@@ -86,9 +86,8 @@ typedef enum {
 
 /* Defined for sapi_can.h */
 typedef enum {
-	CAN0  = 0,
-	CAN1  = 1,
-	CAN_MAX = 2,
+	CAN2 = 0,
+	CAN_MAX,
 } canMap_t;
 
 /*==================[c++]====================================================*/

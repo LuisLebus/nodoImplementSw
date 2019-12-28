@@ -83,7 +83,7 @@ static void gpsNmeaOnRx(void* param)
 	{
 		gpsNmeaLine[i] = val;
 
-		if( (val == '\n') && (gpsNmeaLine[0] == '$') )
+		if( ( (val == '\n') || (val == '\r') ) && (gpsNmeaLine[0] == '$') )
 		{
 			gpsNmeaLine[i + 1] = 0;
 
@@ -113,7 +113,7 @@ static void gpsNmeaOnRx(void* param)
 }
 
 /*==================[external functions definition]==========================*/
-void gpsNmeaInit(uartMap_t uart, uint32_t baudRate )
+bool_t gpsNmeaInit(uartMap_t uart, uint32_t baudRate )
 {
 	uartUsed = uart;
 
@@ -122,7 +122,14 @@ void gpsNmeaInit(uartMap_t uart, uint32_t baudRate )
 	uartInterrupt(uartUsed, true);
 
 	gpsNmeaRmcQueue = xQueueCreate(GPS_NMEA_QUEUE_SIZE, sizeof(struct minmea_sentence_rmc));
+	if(gpsNmeaRmcQueue == NULL)
+		return false;
+
 	gpsNmeaGgaQueue = xQueueCreate(GPS_NMEA_QUEUE_SIZE, sizeof(struct minmea_sentence_gga));
+	if(gpsNmeaGgaQueue == NULL)
+		return false;
+
+	return true;
 }
 
 bool_t gpsNmeaGetRMC(gpsNmeaRmc_t* gpsNmeaRmc, uint32_t msToWait)

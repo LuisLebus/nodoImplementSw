@@ -33,14 +33,14 @@
 
 /*=====[Definitions of private global variables]=============================*/
 static uint8_t j1939CaName[J1939_DATA_LENGTH];
-static uint8_t j1939Address;
+static uint8_t j1939Address = J1939_NULL_ADDRESS;
 static uint8_t j1939AddressClaimed;
 static bool_t j1939WaitAddressClaimContention = false;
 
 static xQueueHandle j1939RxQueue;
 static xQueueHandle j1939TxQueue;
 
-canMap_t canUsed = CAN0;
+canMap_t canUsed = CAN2;
 
 /*=====[Prototypes (declarations) of private functions]======================*/
 static void j1939TxTask(void *pvParameters);
@@ -52,11 +52,16 @@ static void j1939TxAddressClaimHandling(void);
 static void j1939RxAddressClaimHandling(j1939Message_t* j1939Message);
 
 /*=====[Implementations of public functions]=================================*/
-void j1939Init(canMap_t can)
+void j1939Init(canMap_t can, bool_t softFilter)
 {
 	canUsed = can;
 
 	canInit(canUsed, CAN_BAUDRATE_250KBITS);
+	canCallbackSet(canUsed, CAN_RECEIVE, 0, NULL);
+	canInterrupt(canUsed, true);
+
+	if(softFilter)
+		canDisableFilter(canUsed);
 
 	j1939Address = J1939_NULL_ADDRESS;
 	j1939AddressClaimed = J1939_STARTING_ADDRESS;
@@ -152,7 +157,7 @@ static void j1939RxTask(void *pvParameters)
 						j1939RxAddressClaimHandling(&j1939Message);
 						break;
 					default:
-						xQueueSend(j1939RxQueue, &j1939Message, 100 / portTICK_RATE_MS);
+						xQueueSend(j1939RxQueue, &j1939Message, 0);
 				}
 			}
 		}
@@ -203,7 +208,7 @@ static void j1939SendAddressClaim(void)
 	j1939Message.dlc = J1939_DATA_LENGTH;
 	memcpy(j1939Message.data, j1939CaName, J1939_DATA_LENGTH);
 
-	xQueueSend(j1939TxQueue, &j1939Message, 100 / portTICK_RATE_MS);
+	xQueueSend(j1939TxQueue, &j1939Message, 0);
 }
 
 static void j1939TxAddressClaimHandling(void)
@@ -230,7 +235,7 @@ static void j1939RxAddressClaimHandling(j1939Message_t* j1939Message)
 			j1939Message->dlc = J1939_DATA_LENGTH;
 			memcpy(j1939Message->data, j1939CaName, J1939_DATA_LENGTH);
 
-			xQueueSend(j1939TxQueue, &j1939Message, 100 / portTICK_RATE_MS);
+			xQueueSend(j1939TxQueue, &j1939Message, 0);
 
 			j1939WaitAddressClaimContention = 0;
 		}

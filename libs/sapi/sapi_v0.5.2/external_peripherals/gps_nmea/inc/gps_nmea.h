@@ -67,7 +67,7 @@ typedef struct {
 }gpsNmeaGga_t;
 
 /*==================[external functions declaration]=========================*/
-void gpsNmeaInit(uartMap_t uart, uint32_t baudRate );
+bool_t gpsNmeaInit(uartMap_t uart, uint32_t baudRate );
 bool_t gpsNmeaGetRMC(gpsNmeaRmc_t* frame, uint32_t msToWait);
 bool_t gpsNmeaGetGGA(gpsNmeaGga_t* frame, uint32_t msToWait);
 

@@ -68,7 +68,7 @@ typedef struct {
 }j1939Message_t;
 
 /*=====[Prototypes (declarations) of public functions]=======================*/
-void j1939Init(canMap_t can);
+void j1939Init(canMap_t can, uint8_t filterMode);
 bool_t j1939Put(j1939Message_t* j1939Message, uint32_t msToWait);
 bool_t j1939Get(j1939Message_t* j1939Message, uint32_t msToWait);
 

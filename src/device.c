@@ -38,7 +38,7 @@ static void impSwTask(void *pvParameters);
 /*=====[Implementations of public functions]=================================*/
 void deviceInit(void)
 {
-	j1939Init(CAN0);
+	j1939Init(CAN2, true);
 	impSwInit(GPIO0_11);
 
 	xTaskCreate(devJ1939RxTask, (signed char *) "devJ1939RxTask", configMINIMAL_STACK_SIZE, NULL, (tskIDLE_PRIORITY + 1UL), (xTaskHandle *) NULL);
@@ -59,13 +59,6 @@ static void devJ1939RxTask(void *pvParameters)
 		if( j1939Get(&j1939Message, portMAX_DELAY) )
 		{
 			//Este dispositivo descarta todos los mensajes recibidos
-			switch(j1939Message.PDUFormat)
-			{
-				default:
-					continue;
-			}
-
-			j1939Put(&j1939Message, 0);
 		}
 	}
 }

@@ -67,10 +67,10 @@ typedef enum{
 }canEvents_t;
 
 /*==================[external functions declaration]=========================*/
-void canInit(canMap_t can, uint32_t baudRate);
+bool_t canInit(canMap_t can, uint32_t baudRate);
 bool_t canPut(canMap_t can, canMessage_t* canMessage, uint32_t msToWait);
 bool_t canGet(canMap_t can, canMessage_t* canMessage, uint32_t msToWait);
-
+void canDisableFilter(canMap_t can);
 void canSetFilter(canMap_t can, uint32_t filter, canIdType_t type);
 void canClearFilter(canMap_t can, uint32_t filter, canIdType_t type);
 
